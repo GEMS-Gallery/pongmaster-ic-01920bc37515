@@ -9,9 +9,17 @@ const resetButton = document.getElementById('resetButton');
 const PADDLE_HEIGHT = 100;
 const PADDLE_WIDTH = 10;
 const BALL_RADIUS = 5;
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 400;
 
-let leftPaddleY = (canvas.height - PADDLE_HEIGHT) / 2;
-let rightPaddleY = (canvas.height - PADDLE_HEIGHT) / 2;
+let leftPaddleY = (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
+let rightPaddleY = (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
+let ballX = CANVAS_WIDTH / 2;
+let ballY = CANVAS_HEIGHT / 2;
+let ballSpeedX = 5;
+let ballSpeedY = 5;
+let leftScore = 0;
+let rightScore = 0;
 
 function drawPaddle(x, y) {
     ctx.fillStyle = 'white';
@@ -25,35 +33,86 @@ function drawBall(x, y) {
     ctx.fill();
 }
 
-function draw(gameState) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawPaddle(0, gameState.leftPaddleY);
-    drawPaddle(canvas.width - PADDLE_WIDTH, gameState.rightPaddleY);
-    drawBall(gameState.ballX, gameState.ballY);
-    leftScoreElement.textContent = gameState.leftScore;
-    rightScoreElement.textContent = gameState.rightScore;
+function draw() {
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    drawPaddle(0, leftPaddleY);
+    drawPaddle(CANVAS_WIDTH - PADDLE_WIDTH, rightPaddleY);
+    drawBall(ballX, ballY);
+    leftScoreElement.textContent = leftScore;
+    rightScoreElement.textContent = rightScore;
+}
+
+function updateGameState() {
+    // Move the ball
+    ballX += ballSpeedX;
+    ballY += ballSpeedY;
+
+    // Ball collision with top and bottom walls
+    if (ballY - BALL_RADIUS < 0 || ballY + BALL_RADIUS > CANVAS_HEIGHT) {
+        ballSpeedY = -ballSpeedY;
+    }
+
+    // Ball collision with paddles
+    if (ballX - BALL_RADIUS < PADDLE_WIDTH && ballY > leftPaddleY && ballY < leftPaddleY + PADDLE_HEIGHT) {
+        ballSpeedX = Math.abs(ballSpeedX);
+    } else if (ballX + BALL_RADIUS > CANVAS_WIDTH - PADDLE_WIDTH && ballY > rightPaddleY && ballY < rightPaddleY + PADDLE_HEIGHT) {
+        ballSpeedX = -Math.abs(ballSpeedX);
+    }
+
+    // Ball out of bounds
+    if (ballX < 0) {
+        rightScore++;
+        resetBall();
+        updateBackendScore();
+    } else if (ballX > CANVAS_WIDTH) {
+        leftScore++;
+        resetBall();
+        updateBackendScore();
+    }
+}
+
+function resetBall() {
+    ballX = CANVAS_WIDTH / 2;
+    ballY = CANVAS_HEIGHT / 2;
+    ballSpeedX = ballSpeedX > 0 ? 5 : -5;
+    ballSpeedY = 5;
+}
+
+async function updateBackendScore() {
+    await backend.updateScore(leftScore, rightScore);
 }
 
 async function gameLoop() {
-    await backend.updateGameState();
-    const gameState = await backend.getGameState();
-    draw(gameState);
+    updateGameState();
+    draw();
     requestAnimationFrame(gameLoop);
 }
 
-canvas.addEventListener('mousemove', async (event) => {
+canvas.addEventListener('mousemove', (event) => {
     const rect = canvas.getBoundingClientRect();
     const mouseY = event.clientY - rect.top;
     
-    if (event.clientX < canvas.width / 2) {
-        await backend.updateLeftPaddle(mouseY);
+    if (event.clientX < CANVAS_WIDTH / 2) {
+        leftPaddleY = Math.max(0, Math.min(mouseY, CANVAS_HEIGHT - PADDLE_HEIGHT));
     } else {
-        await backend.updateRightPaddle(mouseY);
+        rightPaddleY = Math.max(0, Math.min(mouseY, CANVAS_HEIGHT - PADDLE_HEIGHT));
     }
 });
 
 resetButton.addEventListener('click', async () => {
-    await backend.resetGame();
+    leftScore = 0;
+    rightScore = 0;
+    resetBall();
+    leftPaddleY = (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
+    rightPaddleY = (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
+    await backend.resetScores();
 });
 
-gameLoop();
+async function initGame() {
+    const [left, right] = await backend.getScores();
+    leftScore = left;
+    rightScore = right;
+    gameLoop();
+}
+
+initGame();

@@ -1,15 +1,5 @@
 service : {
-  getGameState: () ->
-   (record {
-      ballX: float64;
-      ballY: float64;
-      leftPaddleY: float64;
-      leftScore: nat;
-      rightPaddleY: float64;
-      rightScore: nat;
-    }) query;
-  resetGame: () -> ();
-  updateGameState: () -> ();
-  updateLeftPaddle: (float64) -> ();
-  updateRightPaddle: (float64) -> ();
+  getScores: () -> (nat, nat) query;
+  resetScores: () -> ();
+  updateScore: (nat, nat) -> ();
 }
